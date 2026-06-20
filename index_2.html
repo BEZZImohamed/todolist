@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiet — votre liste, en silence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #10131A;
+    --surface: #161A23;
+    --line: #232836;
+    --text: #E4E7EC;
+    --text-dim: #6B7280;
+    --text-faint: #454B58;
+    --accent: #8FA98F;
+    --accent-soft: rgba(143, 169, 143, 0.45);
+    --accent-faint: rgba(143, 169, 143, 0.18);
+    --danger: #B98080;
+    --radius: 3px;
+    --ease: cubic-bezier(.4, 0, .2, 1);
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+
+  body{
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(143,169,143,0.05), transparent 45%),
+      radial-gradient(circle at 80% 100%, rgba(143,169,143,0.04), transparent 50%);
+    background-attachment: fixed;
+  }
+
+  .stage{
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 72px 24px 120px;
+  }
+
+  /* ---------- Header / breathing ring ---------- */
+
+  .header{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 64px;
+  }
+
+  .ring-wrap{
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin-bottom: 28px;
+  }
+
+  .ring-bg, .ring-fg{
+    fill: none;
+    stroke-width: 1.4;
+  }
+  .ring-bg{ stroke: var(--line); }
+  .ring-fg{
+    stroke: var(--accent);
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 60px 60px;
+    transition: stroke-dashoffset 1.1s var(--ease);
+  }
+
+  .ring-core{
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    animation: breathe 5200ms ease-in-out infinite;
+  }
+
+  @keyframes breathe{
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50% { transform: scale(1.06); opacity: 1; }
+  }
+
+  .ring-count{
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1;
+  }
+  .ring-total{
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+
+  h1{
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 30px;
+    margin: 0 0 6px;
+    letter-spacing: 0.01em;
+  }
+
+  .subline{
+    color: var(--text-dim);
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 0.02em;
+  }
+
+  .subline span{ color: var(--accent); }
+
+  /* ---------- Composer ---------- */
+
+  .composer{
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 56px;
+  }
+
+  .composer-row{
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 14px;
+    transition: border-color 400ms var(--ease);
+  }
+  .composer-row:focus-within{
+    border-color: var(--accent-soft);
+  }
+
+  #task-input{
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 300;
+    padding: 6px 4px;
+  }
+  #task-input::placeholder{ color: var(--text-faint); }
+
+  .composer-meta{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .pill-group{
+    display: flex;
+    gap: 8px;
+  }
+
+  .pill{
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    padding: 6px 13px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 300ms var(--ease);
+  }
+  .pill:hover{ border-color: var(--text-dim); color: var(--text); }
+
+  .pill[data-priority="haute"].active{ border-color: var(--accent); color: var(--accent); background: var(--accent-faint); }
+  .pill[data-priority="moyenne"].active{ border-color: var(--accent-soft); color: var(--text); background: rgba(143,169,143,0.10); }
+  .pill[data-priority="basse"].active{ border-color: var(--text-dim); color: var(--text); background: rgba(255,255,255,0.03); }
+
+  select#category-select{
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    padding: 6px 28px 6px 13px;
+    border-radius: 20px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%236B7280' stroke-width='1.2' fill='none'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 11px center;
+  }
+
+  .add-btn{
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--accent-soft);
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    padding: 7px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 300ms var(--ease);
+  }
+  .add-btn:hover{ background: var(--accent-faint); }
+
+  /* ---------- Filters ---------- */
+
+  .filters{
+    display: flex;
+    gap: 22px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 14px;
+  }
+  .filter-btn{
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    padding: 2px 0;
+    position: relative;
+    transition: color 300ms var(--ease);
+  }
+  .filter-btn:hover{ color: var(--text-dim); }
+  .filter-btn.active{ color: var(--text); }
+  .filter-btn.active::after{
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -15px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  /* ---------- List ---------- */
+
+  .category-block{
+    margin-bottom: 36px;
+  }
+  .category-label{
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .category-label::after{
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  ul.task-list{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  li.task{
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 6px;
+    border-radius: var(--radius);
+    cursor: default;
+    transition: background 300ms var(--ease);
+    animation: rise 480ms var(--ease) both;
+  }
+  li.task:hover{ background: rgba(255,255,255,0.015); }
+
+  @keyframes rise{
+    from{ opacity: 0; transform: translateY(8px); }
+    to{ opacity: 1; transform: translateY(0); }
+  }
+
+  .check{
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.4px solid var(--text-dim);
+    margin-top: 2px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 300ms var(--ease);
+  }
+  .check:hover{ border-color: var(--accent); }
+
+  .check::after{
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: scale(0);
+    transition: transform 360ms var(--ease);
+  }
+  li.task.done .check{ border-color: var(--accent); }
+  li.task.done .check::after{ transform: scale(1); }
+
+  .task-body{ flex: 1; min-width: 0; }
+
+  .task-text{
+    font-size: 15.5px;
+    font-weight: 300;
+    line-height: 1.5;
+    transition: color 600ms var(--ease), opacity 600ms var(--ease);
+  }
+
+  li.task.done .task-text{
+    color: var(--text-faint);
+    opacity: 0.55;
+  }
+  li.task.done .task-text::after{ opacity: 1; }
+
+  .task-tags{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .priority-dot{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .priority-dot.haute{ background: var(--accent); box-shadow: 0 0 8px var(--accent-soft); }
+  .priority-dot.moyenne{ background: var(--accent-soft); }
+  .priority-dot.basse{ background: var(--text-faint); }
+
+  .task-cat{
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.03em;
+  }
+
+  .remove-btn{
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 250ms var(--ease), color 250ms var(--ease);
+    line-height: 1;
+    padding: 2px 4px;
+  }
+  li.task:hover .remove-btn{ opacity: 1; }
+  .remove-btn:hover{ color: var(--danger); }
+
+  li.task.leaving{
+    animation: leave 480ms var(--ease) forwards;
+  }
+  @keyframes leave{
+    to{ opacity: 0; transform: translateX(10px); max-height: 0; padding-top: 0; padding-bottom: 0; margin: 0; }
+  }
+
+  /* ---------- Empty state ---------- */
+
+  .empty{
+    text-align: center;
+    padding: 60px 0;
+    color: var(--text-faint);
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 300;
+    font-style: italic;
+    animation: fade-in 800ms var(--ease) both;
+  }
+  @keyframes fade-in{ from{ opacity: 0; } to{ opacity: 1; } }
+
+  /* ---------- Footer ---------- */
+
+  .footer{
+    text-align: center;
+    margin-top: 80px;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+  }
+
+  @media (max-width: 480px){
+    .stage{ padding: 48px 18px 100px; }
+    h1{ font-size: 25px; }
+    .composer-meta{ flex-wrap: wrap; gap: 10px; }
+  }
+
+  /* ---------- Auth screen ---------- */
+
+  .auth-stage{
+    max-width: 380px;
+    margin: 0 auto;
+    padding: 120px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .auth-mark{
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1.4px solid var(--accent-soft);
+    margin-bottom: 28px;
+    position: relative;
+    animation: breathe 5200ms ease-in-out infinite;
+  }
+  .auth-mark::after{
+    content: '';
+    position: absolute;
+    inset: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.7;
+  }
+
+  .auth-stage h1{ margin-bottom: 8px; }
+  .auth-sub{
+    color: var(--text-dim);
+    font-size: 13.5px;
+    font-weight: 300;
+    margin-bottom: 40px;
+  }
+
+  .auth-form{
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .field{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+  }
+  .field label{
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .field input{
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    outline: none;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 300;
+    padding: 9px 2px;
+    transition: border-color 300ms var(--ease);
+  }
+  .field input:focus{ border-color: var(--accent-soft); }
+  .field input::placeholder{ color: var(--text-faint); }
+
+  .auth-submit{
+    margin-top: 8px;
+    appearance: none;
+    background: var(--accent-faint);
+    border: 1px solid var(--accent-soft);
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    letter-spacing: 0.03em;
+    padding: 12px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 300ms var(--ease);
+  }
+  .auth-submit:hover{ background: rgba(143,169,143,0.26); }
+  .auth-submit:disabled{ opacity: 0.5; cursor: default; }
+
+  .auth-switch{
+    margin-top: 24px;
+    font-size: 13px;
+    color: var(--text-faint);
+  }
+  .auth-switch button{
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+  }
+  .auth-switch button:hover{ color: var(--accent); }
+
+  .auth-msg{
+    min-height: 18px;
+    font-size: 12.5px;
+    margin-top: 4px;
+  }
+  .auth-msg.error{ color: var(--danger); }
+  .auth-msg.ok{ color: var(--accent); }
+
+  .hidden{ display: none !important; }
+
+  .topbar{
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+  }
+  .user-email{
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+  .signout-btn{
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-size: 11.5px;
+    letter-spacing: 0.03em;
+    padding: 5px 13px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 300ms var(--ease);
+  }
+  .signout-btn:hover{ border-color: var(--text-dim); color: var(--text); }
+
+  .sync-dot{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-faint);
+    transition: background 400ms var(--ease);
+  }
+  .sync-dot.syncing{ background: var(--accent); animation: pulse-dot 900ms ease-in-out infinite; }
+  @keyframes pulse-dot{ 0%,100%{ opacity: 1; } 50%{ opacity: 0.3; } }
+
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ---------- Écran de connexion ---------- -->
+<div class="auth-stage" id="auth-stage">
+  <div class="auth-mark"></div>
+  <h1>Quiet</h1>
+  <div class="auth-sub" id="auth-sub">Connectez-vous pour retrouver votre liste, partout.</div>
+
+  <form class="auth-form" id="auth-form">
+    <div class="field">
+      <label for="auth-email">Email</label>
+      <input type="email" id="auth-email" placeholder="vous@exemple.com" required autocomplete="email">
+    </div>
+    <div class="field">
+      <label for="auth-password">Mot de passe</label>
+      <input type="password" id="auth-password" placeholder="••••••••" required autocomplete="current-password" minlength="6">
+    </div>
+    <button type="submit" class="auth-submit" id="auth-submit">se connecter</button>
+    <div class="auth-msg" id="auth-msg"></div>
+  </form>
+
+  <div class="auth-switch">
+    <span id="auth-switch-text">Pas encore de compte ?</span>
+    <button type="button" id="auth-switch-btn">créer un compte</button>
+  </div>
+</div>
+
+<!-- ---------- App principale ---------- -->
+<div class="stage hidden" id="app-stage">
+
+  <div class="topbar">
+    <span class="sync-dot" id="sync-dot"></span>
+    <span class="user-email" id="user-email"></span>
+    <button class="signout-btn" id="signout-btn">déconnexion</button>
+  </div>
+
+  <div class="header">
+    <div class="ring-wrap">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
+        <circle id="ring-fg" class="ring-fg" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"></circle>
+      </svg>
+      <div class="ring-core">
+        <div class="ring-count" id="ring-count">0</div>
+        <div class="ring-total" id="ring-total">/ 0</div>
+      </div>
+    </div>
+    <h1>Quiet</h1>
+    <div class="subline" id="subline">Une tâche à la fois. <span id="time-display"></span></div>
+  </div>
+
+  <div class="composer">
+    <div class="composer-row">
+      <input type="text" id="task-input" placeholder="Qu'avez-vous à faire ?" maxlength="140">
+    </div>
+    <div class="composer-meta">
+      <div class="pill-group" id="priority-group">
+        <button class="pill" data-priority="basse">basse</button>
+        <button class="pill active" data-priority="moyenne">moyenne</button>
+        <button class="pill" data-priority="haute">haute</button>
+      </div>
+      <select id="category-select">
+        <option value="Général">Général</option>
+        <option value="Travail">Travail</option>
+        <option value="Études">Études</option>
+        <option value="Personnel">Personnel</option>
+      </select>
+      <button class="add-btn" id="add-btn">ajouter</button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">tout</button>
+    <button class="filter-btn" data-filter="active">en cours</button>
+    <button class="filter-btn" data-filter="done">fait</button>
+  </div>
+
+  <div id="list-root"></div>
+
+  <div class="footer" id="footer-note"></div>
+
+</div>
+
+<script>
+(function(){
+  // ---------- Configuration Supabase ----------
+  const SUPABASE_URL = 'https://xtaqupfhbeotblrruadh.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0YXF1cGZoYmVvdGJscnJ1YWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzA1NzYsImV4cCI6MjA5NzU0NjU3Nn0.GM5q8sFm5xC41403Ow-hxzTGNvuiBqAvUT17_2ypMxk';
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let tasks = [];
+  let filter = 'all';
+  let selectedPriority = 'moyenne';
+  let currentUser = null;
+  let authMode = 'signin'; // 'signin' | 'signup'
+
+  // ---------- DOM refs : auth ----------
+  const authStage = document.getElementById('auth-stage');
+  const appStage = document.getElementById('app-stage');
+  const authForm = document.getElementById('auth-form');
+  const authEmail = document.getElementById('auth-email');
+  const authPassword = document.getElementById('auth-password');
+  const authSubmit = document.getElementById('auth-submit');
+  const authMsg = document.getElementById('auth-msg');
+  const authSub = document.getElementById('auth-sub');
+  const authSwitchText = document.getElementById('auth-switch-text');
+  const authSwitchBtn = document.getElementById('auth-switch-btn');
+  const userEmailEl = document.getElementById('user-email');
+  const signoutBtn = document.getElementById('signout-btn');
+  const syncDot = document.getElementById('sync-dot');
+
+  // ---------- DOM refs : app ----------
+  const listRoot = document.getElementById('list-root');
+  const taskInput = document.getElementById('task-input');
+  const addBtn = document.getElementById('add-btn');
+  const categorySelect = document.getElementById('category-select');
+  const priorityGroup = document.getElementById('priority-group');
+  const ringFg = document.getElementById('ring-fg');
+  const ringCount = document.getElementById('ring-count');
+  const ringTotal = document.getElementById('ring-total');
+  const subline = document.getElementById('subline');
+  const footerNote = document.getElementById('footer-note');
+
+  const CIRCUMFERENCE = 2 * Math.PI * 52;
+
+  // ---------- Auth UI ----------
+  function setAuthMode(mode){
+    authMode = mode;
+    authMsg.textContent = '';
+    authMsg.className = 'auth-msg';
+    if(mode === 'signin'){
+      authSubmit.textContent = 'se connecter';
+      authSub.textContent = 'Connectez-vous pour retrouver votre liste, partout.';
+      authSwitchText.textContent = 'Pas encore de compte ?';
+      authSwitchBtn.textContent = 'créer un compte';
+      authPassword.setAttribute('autocomplete', 'current-password');
+    } else {
+      authSubmit.textContent = 'créer mon compte';
+      authSub.textContent = 'Un compte, pour garder votre calme avec vous.';
+      authSwitchText.textContent = 'Déjà un compte ?';
+      authSwitchBtn.textContent = 'se connecter';
+      authPassword.setAttribute('autocomplete', 'new-password');
+    }
+  }
+
+  authSwitchBtn.addEventListener('click', () => {
+    setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+  });
+
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+    authSubmit.disabled = true;
+    authMsg.className = 'auth-msg';
+    authMsg.textContent = '';
+
+    try{
+      if(authMode === 'signin'){
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if(error) throw error;
+        authMsg.className = 'auth-msg ok';
+        authMsg.textContent = 'Compte créé. Vérifiez vos emails si une confirmation est requise, puis connectez-vous.';
+        setAuthMode('signin');
+      }
+    } catch(err){
+      authMsg.className = 'auth-msg error';
+      authMsg.textContent = translateAuthError(err.message);
+    } finally {
+      authSubmit.disabled = false;
+    }
+  });
+
+  function translateAuthError(msg){
+    if(/already registered/i.test(msg)) return 'Un compte existe déjà avec cet email.';
+    if(/invalid login credentials/i.test(msg)) return 'Email ou mot de passe incorrect.';
+    if(/password should be/i.test(msg)) return 'Le mot de passe doit faire au moins 6 caractères.';
+    if(/email not confirmed/i.test(msg)) return 'Veuillez confirmer votre email avant de vous connecter.';
+    return 'Une erreur est survenue. Réessayez.';
+  }
+
+  signoutBtn.addEventListener('click', async () => {
+    await supabase.auth.signOut();
+  });
+
+  // ---------- Session handling ----------
+  supabase.auth.onAuthStateChange((event, session) => {
+    if(session && session.user){
+      currentUser = session.user;
+      showApp();
+    } else {
+      currentUser = null;
+      showAuth();
+    }
+  });
+
+  function showApp(){
+    authStage.classList.add('hidden');
+    appStage.classList.remove('hidden');
+    userEmailEl.textContent = currentUser.email;
+    fetchTasks();
+  }
+
+  function showAuth(){
+    appStage.classList.add('hidden');
+    authStage.classList.remove('hidden');
+    authForm.reset();
+  }
+
+  // ---------- Sync indicator ----------
+  function setSyncing(on){
+    syncDot.classList.toggle('syncing', on);
+  }
+
+  // ---------- Data layer (Supabase) ----------
+  async function fetchTasks(){
+    setSyncing(true);
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setSyncing(false);
+    if(error){
+      console.error(error);
+      footerNote.textContent = 'Synchronisation impossible.';
+      return;
+    }
+    tasks = data || [];
+    render();
+  }
+
+  async function addTask(text){
+    const trimmed = text.trim();
+    if(!trimmed || !currentUser) return;
+    setSyncing(true);
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        user_id: currentUser.id,
+        text: trimmed,
+        done: false,
+        priority: selectedPriority,
+        category: categorySelect.value
+      })
+      .select()
+      .single();
+    setSyncing(false);
+    if(error){ console.error(error); return; }
+    tasks.unshift(data);
+    render();
+  }
+
+  async function toggleTask(id){
+    const t = tasks.find(t => t.id === id);
+    if(!t) return;
+    t.done = !t.done;
+    render();
+    setSyncing(true);
+    const { error } = await supabase.from('tasks').update({ done: t.done }).eq('id', id);
+    setSyncing(false);
+    if(error){ console.error(error); t.done = !t.done; render(); }
+  }
+
+  async function removeTask(id){
+    const el = document.querySelector(`[data-id="${id}"]`);
+    const finish = async () => {
+      tasks = tasks.filter(t => t.id !== id);
+      render();
+      setSyncing(true);
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      setSyncing(false);
+      if(error) console.error(error);
+    };
+    if(el){
+      el.classList.add('leaving');
+      setTimeout(finish, 460);
+    } else {
+      finish();
+    }
+  }
+
+  // ---------- Rendering ----------
+  function priorityRank(p){
+    return p === 'haute' ? 0 : p === 'moyenne' ? 1 : 2;
+  }
+
+  function visibleTasks(){
+    if(filter === 'active') return tasks.filter(t => !t.done);
+    if(filter === 'done') return tasks.filter(t => t.done);
+    return tasks;
+  }
+
+  function groupByCategory(list){
+    const groups = {};
+    list.forEach(t => {
+      if(!groups[t.category]) groups[t.category] = [];
+      groups[t.category].push(t);
+    });
+    Object.keys(groups).forEach(cat => {
+      groups[cat].sort((a,b) => {
+        if(a.done !== b.done) return a.done ? 1 : -1;
+        return priorityRank(a.priority) - priorityRank(b.priority);
+      });
+    });
+    return groups;
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function render(){
+    const vis = visibleTasks();
+    listRoot.innerHTML = '';
+
+    if(tasks.length === 0){
+      listRoot.innerHTML = `<div class="empty">Rien pour l'instant. Respirez — puis ajoutez ce qui compte.</div>`;
+    } else if(vis.length === 0){
+      listRoot.innerHTML = `<div class="empty">Rien à montrer ici.</div>`;
+    } else {
+      const groups = groupByCategory(vis);
+      Object.keys(groups).forEach(cat => {
+        const block = document.createElement('div');
+        block.className = 'category-block';
+
+        const label = document.createElement('div');
+        label.className = 'category-label';
+        label.textContent = cat;
+        block.appendChild(label);
+
+        const ul = document.createElement('ul');
+        ul.className = 'task-list';
+
+        groups[cat].forEach((t, idx) => {
+          const li = document.createElement('li');
+          li.className = 'task' + (t.done ? ' done' : '');
+          li.setAttribute('data-id', t.id);
+          li.style.animationDelay = (idx * 35) + 'ms';
+
+          li.innerHTML = `
+            <div class="check" data-action="toggle"></div>
+            <div class="task-body">
+              <div class="task-text">${escapeHtml(t.text)}</div>
+              <div class="task-tags">
+                <span class="priority-dot ${t.priority}"></span>
+                <span class="task-cat">${t.priority}</span>
+              </div>
+            </div>
+            <button class="remove-btn" data-action="remove" aria-label="Supprimer">×</button>
+          `;
+          ul.appendChild(li);
+        });
+
+        block.appendChild(ul);
+        listRoot.appendChild(block);
+      });
+    }
+
+    listRoot.querySelectorAll('[data-action="toggle"]').forEach(el => {
+      el.addEventListener('click', () => {
+        const id = el.closest('.task').getAttribute('data-id');
+        toggleTask(id);
+      });
+    });
+    listRoot.querySelectorAll('[data-action="remove"]').forEach(el => {
+      el.addEventListener('click', () => {
+        const id = el.closest('.task').getAttribute('data-id');
+        removeTask(id);
+      });
+    });
+
+    updateRing();
+    updateFooter();
+  }
+
+  function updateRing(){
+    const total = tasks.length;
+    const done = tasks.filter(t => t.done).length;
+    ringCount.textContent = done;
+    ringTotal.textContent = '/ ' + total;
+
+    const ratio = total === 0 ? 0 : done / total;
+    const offset = CIRCUMFERENCE * (1 - ratio);
+    ringFg.style.strokeDasharray = CIRCUMFERENCE.toFixed(1);
+    ringFg.style.strokeDashoffset = offset.toFixed(1);
+
+    if(total === 0){
+      subline.innerHTML = `Une tâche à la fois. <span id="time-display"></span>`;
+    } else if(done === total){
+      subline.innerHTML = `Tout est fait. Profitez du calme. <span id="time-display"></span>`;
+    } else {
+      subline.innerHTML = `${done} sur ${total} accomplies. <span id="time-display"></span>`;
+    }
+    tick();
+  }
+
+  function updateFooter(){
+    const remaining = tasks.filter(t => !t.done).length;
+    if(tasks.length === 0){
+      footerNote.textContent = '';
+    } else {
+      footerNote.textContent = remaining === 0
+        ? 'aucune tâche en attente'
+        : remaining + (remaining > 1 ? ' tâches restantes' : ' tâche restante');
+    }
+  }
+
+  function tick(){
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const span = document.getElementById('time-display');
+    if(span) span.textContent = hh + ':' + mm;
+  }
+
+  // ---- events ----
+  addBtn.addEventListener('click', () => {
+    addTask(taskInput.value);
+    taskInput.value = '';
+    taskInput.focus();
+  });
+
+  taskInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      addTask(taskInput.value);
+      taskInput.value = '';
+    }
+  });
+
+  priorityGroup.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pill');
+    if(!btn) return;
+    selectedPriority = btn.getAttribute('data-priority');
+    priorityGroup.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+  });
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      filter = btn.getAttribute('data-filter');
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+
+  setInterval(tick, 1000 * 30);
+})();
+</script>
+
+</body>
+</html>
